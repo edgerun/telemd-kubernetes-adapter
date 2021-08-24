@@ -5,6 +5,10 @@ import (
 	"errors"
 	"fmt"
 	goredis "github.com/go-redis/redis/v7"
+	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/json"
 	"k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
@@ -12,7 +16,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"log"
-
 	"os"
 	"os/signal"
 	"sync"
@@ -74,6 +77,69 @@ func initKubeClient() (*kubernetes.Clientset, error) {
 
 	return clientset, nil
 }
+
+type ContainerMessage struct {
+	Id    string `json:"id"`
+	Image string `json:"image"`
+}
+
+type PodMessage struct {
+	PodUid     types.UID                   `json:"podUid"`
+	Containers map[string]ContainerMessage `json:"containers"`
+	HostIP     string                      `json:"hostIP"`
+	Name       string                      `json:"Name"`
+	NodeName   string                      `json:"NodeName"`
+	PodIP      string                      `json:"podIP"`
+	QosClass   v1.PodQOSClass              `json:"qosClass"`
+	StartTime  *metav1.Time                `json:"startTime"`
+}
+
+func publishAddPod(obj interface{}, daemon *Daemon) {
+	pod := obj.(*v1.Pod)
+	log.Printf("Added Pod: %s\n", pod.Name)
+	jsonObject, err := marshallPod(pod)
+	if err {
+		return
+	}
+	log.Println(jsonObject)
+}
+
+func marshallPod(pod *v1.Pod) (string, bool) {
+	containers := make(map[string]ContainerMessage)
+	for _, container := range pod.Spec.Containers {
+		containers[container.Name] = ContainerMessage{
+			Image: container.Image,
+		}
+	}
+	podMessage := PodMessage{
+		PodUid:     pod.UID,
+		Containers: containers,
+		HostIP:     pod.Status.HostIP,
+		Name:       pod.Name,
+		NodeName:   pod.Spec.NodeName,
+		PodIP:      pod.Status.PodIP,
+		QosClass:   pod.Status.QOSClass,
+		StartTime:  pod.Status.StartTime,
+	}
+
+	marshal, err := json.Marshal(podMessage)
+	if err != nil {
+		log.Fatal(err)
+		return "", true
+	}
+	jsonObject := string(marshal)
+	return jsonObject, false
+}
+
+func publishDeletePod(obj interface{}, daemon *Daemon) {
+	pod := obj.(*v1.Pod)
+	jsonObject, err := marshallPod(pod)
+	if err {
+		return
+	}
+	log.Println(jsonObject)
+}
+
 func watch(daemon *Daemon) error {
 	clientset := daemon.clientSet
 	stopper := daemon.stopper
@@ -91,11 +157,10 @@ func watch(daemon *Daemon) error {
 	// event that the shared informer catches
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		// When a new pod gets created
-		AddFunc: func(obj interface{}) { log.Println("not implemented") },
-		// When a pod gets updated
-		UpdateFunc: func(interface{}, interface{}) { log.Println("not implemented") },
+		AddFunc: func(obj interface{}) { publishAddPod(obj, daemon) },
+
 		// When a pod gets deleted
-		DeleteFunc: func(interface{}) { log.Println("not implemented") },
+		DeleteFunc: func(obj interface{}) { publishDeletePod(obj, daemon) },
 	})
 
 	// You need to start the informer, in my case, it runs in the background
