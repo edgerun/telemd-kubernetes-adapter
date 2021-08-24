@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:experimental
+#############
+### build ###
+#############
+FROM golang:alpine3.14 as builder
+
+ADD . /go/src/github.com/edgerun/telemd-kubernetes-adapter
+WORKDIR /go/src/github.com/edgerun/telemd-kubernetes-adapter
+RUN CGO_ENABLED=0 go build -o /usr/local/bin/telemd-kubernetes-adapter cmd/telemd-kubernetes-adapter/main.go
+
+#############
+### prod ###
+#############
+FROM alpine
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+ENTRYPOINT telemd-kubernetes-adapter

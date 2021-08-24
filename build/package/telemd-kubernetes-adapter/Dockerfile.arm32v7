@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:experimental
+#############
+### build ###
+#############
+FROM golang:alpine3.14@sha256:108df97aebd7abe49cd8e8cce3de30b5389dab748d4d13b0269a29886bb91090 as builder
+
+ADD . /go/src/github.com/edgerun/telemd-kubernetes-adapter
+WORKDIR /go/src/github.com/edgerun/telemd-kubernetes-adapter
+RUN CGO_ENABLED=0 GOARCH=arm GOARM=7 go build -v -o /usr/local/bin/telemd-kubernetes-adapter cmd/telemd-kubernetes-adapter/main.go
+
+#############
+### prod ###
+#############
+FROM arm32v7/alpine
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+ENTRYPOINT telemd-kubernetes-adapter
