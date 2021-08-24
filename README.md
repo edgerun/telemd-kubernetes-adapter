@@ -57,7 +57,7 @@ All fields are extracted from:
 
 The daemon will read redis credentials from the following environment variables:
 
-* telemd_kubernetes_adapter_redis_host
-* telemd_kubernetes_adapter_redis_port
-* telemd_kubernetes_adapter_location (either: `local` or `cluster`)
+* `telemd_kubernetes_adapter_redis_host`
+* `telemd_kubernetes_adapter_redis_port`
+* `telemd_kubernetes_adapter_location` (either: `local` or `cluster`)
   * In case of `local`, will read kubeconfig from `KUBECONFIG` env variable
