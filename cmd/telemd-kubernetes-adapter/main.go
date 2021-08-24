@@ -135,6 +135,7 @@ func (daemon *Daemon) Run() {
 
 func (d *Daemon) Stop() {
 	<-d.stopper
+	d.rds.Close()
 }
 
 func signalHandler(daemon *Daemon) {
@@ -154,7 +155,7 @@ func main() {
 	log.Println("Start telemd-kubernetes-adapter")
 
 	rds, err := initRedis()
-	defer rds.Close()
+
 	if err != nil {
 		panic(err)
 	}
