@@ -20,6 +20,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 )
 
 func initRedis() (*goredis.Client, error) {
@@ -102,6 +103,11 @@ func publishAddPod(obj interface{}, daemon *Daemon) {
 		return
 	}
 	log.Println(jsonObject)
+
+	ts := time.Now().Unix()
+	name := "pod/create"
+	value := jsonObject
+	daemon.rds.Publish("galileo/event", fmt.Sprintf("%d %s %s", ts, name, value))
 }
 
 func marshallPod(pod *v1.Pod) (string, bool) {
@@ -138,6 +144,11 @@ func publishDeletePod(obj interface{}, daemon *Daemon) {
 		return
 	}
 	log.Println(jsonObject)
+
+	ts := time.Now().Unix()
+	name := "pod/delete"
+	value := jsonObject
+	daemon.rds.Publish("galileo/event", fmt.Sprintf("%d %s %s", ts, name, value))
 }
 
 func watch(daemon *Daemon) error {
