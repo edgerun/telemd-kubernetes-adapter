@@ -14,7 +14,7 @@ all: test build-all
 build-all:
 	$(GOINSTALL) ./...
 
-telemd:
+telemd-kubernetes-adapter:
 	$(GOINSTALL) ./cmd/telemd-kubernetes-adapter
 
 test:
