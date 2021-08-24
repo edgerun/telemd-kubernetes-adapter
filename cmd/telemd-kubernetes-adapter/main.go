@@ -110,9 +110,9 @@ type Daemon struct {
 	clientSet *kubernetes.Clientset
 }
 
-func (d *Daemon) run() {
+func (daemon *Daemon) run() {
 	go func() {
-		err := watch(d)
+		err := watch(daemon)
 		if err != nil {
 			panic(err)
 		}
@@ -133,9 +133,9 @@ func (daemon *Daemon) Run() {
 	wg.Wait()
 }
 
-func (d *Daemon) Stop() {
-	<-d.stopper
-	d.rds.Close()
+func (daemon *Daemon) Stop() {
+	<-daemon.stopper
+	daemon.rds.Close()
 }
 
 func signalHandler(daemon *Daemon) {
