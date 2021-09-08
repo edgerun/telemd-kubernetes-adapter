@@ -108,7 +108,7 @@ func publishAddPod(obj interface{}, daemon *Daemon) {
 	ts := time.Now().Unix()
 	name := "pod/create"
 	value := jsonObject
-	daemon.rds.Publish("galileo/event", fmt.Sprintf("%d %s %s", ts, name, value))
+	daemon.rds.Publish("galileo/events", fmt.Sprintf("%d %s %s", ts, name, value))
 }
 
 func marshallPod(pod *v1.Pod) (string, bool) {
