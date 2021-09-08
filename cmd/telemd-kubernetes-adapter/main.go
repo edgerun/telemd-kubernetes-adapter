@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	goredis "github.com/go-redis/redis/v7"
@@ -153,6 +154,9 @@ func publishDeletePod(obj interface{}, daemon *Daemon) {
 
 func watch(daemon *Daemon) error {
 	clientset := daemon.clientSet
+
+	publishDeployedPods(daemon)
+
 	stopper := daemon.stopper
 	// Create the shared informer factory and use the client to connect to
 	// Kubernetes
@@ -178,6 +182,18 @@ func watch(daemon *Daemon) error {
 	go informer.Run(stopper)
 
 	return nil
+}
+
+func publishDeployedPods(daemon *Daemon) {
+	pods, err := daemon.clientSet.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		panic(err.Error())
+	}
+
+	fmt.Printf("There are %d pods in the cluster\n", len(pods.Items))
+	for _, pod := range pods.Items {
+		publishAddPod(&pod, daemon)
+	}
 }
 
 type Daemon struct {
