@@ -32,7 +32,7 @@ Usage
 
 The daemon will call for each pod the following command:
     
-    publish galileo/events "{timestamp} container {metadata}"
+    publish galileo/events "{timestamp} pod/[create|delete] {metadata}"
 
 Whereas metadata:
 
