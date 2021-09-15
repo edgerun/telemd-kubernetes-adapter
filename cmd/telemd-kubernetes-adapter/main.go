@@ -46,6 +46,29 @@ func initRedis() (*goredis.Client, error) {
 	return goredis.NewClient(options), nil
 }
 
+func saveNodeInfo(node v1.Node, client *goredis.Client) error {
+	key := "telemd.info:" + node.Name
+
+	multi := client.TxPipeline()
+
+	marshal, err := json.Marshal(node.Labels)
+	multi.HSet(key, "labels", marshal)
+
+	_, err = multi.Exec()
+	return err
+}
+
+func saveNodeInfos(client *goredis.Client, clientset *kubernetes.Clientset) {
+	nodes, _ := clientset.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+	fmt.Printf("Saving nodeinfos of %d nodes", len(nodes.Items))
+	for _, node := range nodes.Items {
+		err := saveNodeInfo(node, client)
+		if err != nil {
+			log.Printf("error happened, saving nodeinfo, %s", err)
+		}
+	}
+}
+
 func initKubeClient() (*kubernetes.Clientset, error) {
 	kubeConfigLocation, found := os.LookupEnv("telemd_kubernetes_adapter_location")
 	if !found {
@@ -94,6 +117,7 @@ type PodMessage struct {
 	PodIP      string                      `json:"podIP"`
 	QosClass   v1.PodQOSClass              `json:"qosClass"`
 	StartTime  *metav1.Time                `json:"startTime"`
+	Labels     map[string]string           `json:"labels"`
 }
 
 func publishAddPod(obj interface{}, daemon *Daemon) {
@@ -127,6 +151,7 @@ func marshallPod(pod *v1.Pod) (string, bool) {
 		PodIP:      pod.Status.PodIP,
 		QosClass:   pod.Status.QOSClass,
 		StartTime:  pod.Status.StartTime,
+		Labels:     pod.Labels,
 	}
 
 	marshal, err := json.Marshal(podMessage)
@@ -259,6 +284,8 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+
+	saveNodeInfos(rds, clientset)
 
 	daemon := &Daemon{
 		stopper:   make(chan struct{}),
