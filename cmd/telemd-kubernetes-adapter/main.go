@@ -112,8 +112,8 @@ type PodMessage struct {
 	PodUid     types.UID                   `json:"podUid"`
 	Containers map[string]ContainerMessage `json:"containers"`
 	HostIP     string                      `json:"hostIP"`
-	Name       string                      `json:"Name"`
-	NodeName   string                      `json:"NodeName"`
+	Name       string                      `json:"name"`
+	NodeName   string                      `json:"nodeName"`
 	PodIP      string                      `json:"podIP"`
 	QosClass   v1.PodQOSClass              `json:"qosClass"`
 	StartTime  *metav1.Time                `json:"startTime"`
