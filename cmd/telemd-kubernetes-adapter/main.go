@@ -105,6 +105,7 @@ func initKubeClient() (*kubernetes.Clientset, error) {
 
 type ContainerMessage struct {
 	Id    string `json:"id"`
+	Name  string `json:"name"`
 	Image string `json:"image"`
 }
 
@@ -137,8 +138,10 @@ func publishAddPod(obj interface{}, daemon *Daemon) {
 
 func marshallPod(pod *v1.Pod) (string, bool) {
 	containers := make(map[string]ContainerMessage)
-	for _, container := range pod.Spec.Containers {
+	for _, container := range pod.Status.ContainerStatuses {
 		containers[container.Name] = ContainerMessage{
+			Id:    container.ContainerID,
+			Name:  container.Name,
 			Image: container.Image,
 		}
 	}
