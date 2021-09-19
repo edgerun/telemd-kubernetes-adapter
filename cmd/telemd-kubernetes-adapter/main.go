@@ -113,6 +113,7 @@ type ContainerMessage struct {
 type PodMessage struct {
 	PodUid     types.UID                   `json:"podUid"`
 	Containers map[string]ContainerMessage `json:"containers"`
+	Namespace  string                      `json:"namespace"`
 	HostIP     string                      `json:"hostIP"`
 	Name       string                      `json:"name"`
 	NodeName   string                      `json:"nodeName"`
@@ -166,6 +167,7 @@ func marshallPod(pod *v1.Pod) (string, bool) {
 	podMessage := PodMessage{
 		PodUid:     pod.UID,
 		Containers: containers,
+		Namespace:  pod.Namespace,
 		HostIP:     pod.Status.HostIP,
 		Name:       pod.Name,
 		NodeName:   pod.Spec.NodeName,
