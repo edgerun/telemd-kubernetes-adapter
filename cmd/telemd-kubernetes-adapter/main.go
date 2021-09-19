@@ -126,6 +126,9 @@ type PodMessage struct {
 
 func publishAddPod(obj interface{}, daemon *Daemon) {
 	pod := obj.(*v1.Pod)
+	if pod.Status.Phase != v1.PodRunning {
+		return
+	}
 	log.Printf("Added Pod: %s\n", pod.Name)
 	jsonObject, err := marshallPod(pod)
 	if err {
