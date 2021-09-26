@@ -107,6 +107,7 @@ type ContainerMessage struct {
 	Id    string `json:"id"`
 	Name  string `json:"name"`
 	Image string `json:"image"`
+	Port  int32  `json:"port"`
 }
 
 type PodMessage struct {
@@ -138,11 +139,27 @@ func publishAddPod(obj interface{}, daemon *Daemon) {
 
 func marshallPod(pod *v1.Pod) (string, bool) {
 	containers := make(map[string]ContainerMessage)
-	for _, container := range pod.Status.ContainerStatuses {
-		containers[container.Name] = ContainerMessage{
-			Id:    container.ContainerID,
-			Name:  container.Name,
-			Image: container.Image,
+	for _, containerStatus := range pod.Status.ContainerStatuses {
+		var container v1.Container
+		for _, _container := range pod.Spec.Containers {
+			if _container.Name == containerStatus.Name {
+				container = _container
+				break
+			}
+		}
+
+		var containerPort int32
+		if len(container.Ports) > 0 {
+			containerPort = container.Ports[0].ContainerPort
+		} else {
+			containerPort = -1
+		}
+
+		containers[containerStatus.Name] = ContainerMessage{
+			Id:    containerStatus.ContainerID,
+			Name:  containerStatus.Name,
+			Image: containerStatus.Image,
+			Port:  containerPort,
 		}
 	}
 	podMessage := PodMessage{
