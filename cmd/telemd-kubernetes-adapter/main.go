@@ -120,6 +120,7 @@ type PodMessage struct {
 	QosClass   v1.PodQOSClass              `json:"qosClass"`
 	StartTime  *metav1.Time                `json:"startTime"`
 	Labels     map[string]string           `json:"labels"`
+	Namespace  string                      `json:"namespace"`
 }
 
 func publishAddPod(obj interface{}, daemon *Daemon) {
@@ -172,6 +173,7 @@ func marshallPod(pod *v1.Pod) (string, bool) {
 		QosClass:   pod.Status.QOSClass,
 		StartTime:  pod.Status.StartTime,
 		Labels:     pod.Labels,
+		Namespace:  pod.Namespace,
 	}
 
 	marshal, err := json.Marshal(podMessage)
