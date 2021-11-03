@@ -19,6 +19,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -52,7 +53,9 @@ func saveNodeInfo(node v1.Node, client *goredis.Client) error {
 	multi := client.TxPipeline()
 
 	marshal, err := json.Marshal(node.Labels)
+	marshalAllocatable, err := json.Marshal(node.Status.Allocatable)
 	multi.HSet(key, "labels", marshal)
+	multi.HSet(key, "allocatable", marshalAllocatable)
 
 	_, err = multi.Exec()
 	return err
@@ -108,6 +111,8 @@ type ContainerMessage struct {
 	Name  string `json:"name"`
 	Image string `json:"image"`
 	Port  int32  `json:"port"`
+	ResourceRequests map[string]string `json:"resource_requests"`
+	ResourceLimits   map[string]string `json:"resource_limits"`
 }
 
 type PodMessage struct {
@@ -121,7 +126,6 @@ type PodMessage struct {
 	QosClass   v1.PodQOSClass              `json:"qosClass"`
 	StartTime  *metav1.Time                `json:"startTime"`
 	Labels     map[string]string           `json:"labels"`
-	Namespace  string                      `json:"namespace"`
 }
 
 func publishAddPod(obj interface{}, daemon *Daemon) {
@@ -142,16 +146,33 @@ func publishAddPod(obj interface{}, daemon *Daemon) {
 	daemon.rds.Publish("galileo/events", fmt.Sprintf("%.7f %s %s", ts, name, value))
 }
 
+func findContainer(name string, image string, pod *v1.Pod) (*v1.Container, bool) {
+	for _, container := range pod.Spec.Containers {
+		if container.Name == name && strings.Contains(image, container.Image) {
+			return &container, true
+		}
+	}
+	return nil, false
+}
+
+func mapResource(resources v1.ResourceList) map[string]string {
+	m := make(map[string]string)
+	for name, quantity := range resources {
+		marshal, _ := json.Marshal(quantity)
+		m[string(name)] = string(marshal)
+	}
+	return m
+}
+
 func marshallPod(pod *v1.Pod) (string, bool) {
 	containers := make(map[string]ContainerMessage)
 	for _, containerStatus := range pod.Status.ContainerStatuses {
-		var container v1.Container
-		for _, _container := range pod.Spec.Containers {
-			if _container.Name == containerStatus.Name {
-				container = _container
-				break
-			}
-		}
+		name := containerStatus.Name
+		image := containerStatus.Image
+		container, _ := findContainer(name, image, pod)
+		image = container.Image
+		requests := mapResource(container.Resources.Requests)
+		limits := mapResource(container.Resources.Limits)
 
 		var containerPort int32
 		if len(container.Ports) > 0 {
@@ -160,13 +181,16 @@ func marshallPod(pod *v1.Pod) (string, bool) {
 			containerPort = -1
 		}
 
-		containers[containerStatus.Name] = ContainerMessage{
+		containers[container.Name] = ContainerMessage{
 			Id:    containerStatus.ContainerID,
-			Name:  containerStatus.Name,
-			Image: containerStatus.Image,
+			Name:  name,
+			Image: image,
+			ResourceRequests: requests,
+			ResourceLimits:   limits,
 			Port:  containerPort,
 		}
 	}
+
 	podMessage := PodMessage{
 		PodUid:     pod.UID,
 		Containers: containers,
@@ -178,7 +202,6 @@ func marshallPod(pod *v1.Pod) (string, bool) {
 		QosClass:   pod.Status.QOSClass,
 		StartTime:  pod.Status.StartTime,
 		Labels:     pod.Labels,
-		Namespace:  pod.Namespace,
 	}
 
 	marshal, err := json.Marshal(podMessage)
