@@ -131,7 +131,7 @@ type PodMessage struct {
 func publishAddPod(obj interface{}, daemon *Daemon) {
 	pod := obj.(*v1.Pod)
 	if pod.Status.Phase != v1.PodRunning {
-		return
+		log.Println("Got notified about Pod but state is not running: ", fmt.Sprintf("%s %s", pod.Name, pod.Status.Phase))
 	}
 	log.Printf("Added Pod: %s\n", pod.Name)
 	jsonObject, err := marshallPod(pod)
@@ -248,6 +248,9 @@ func watch(daemon *Daemon) error {
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		// When a new pod gets created
 		AddFunc: func(obj interface{}) { publishAddPod(obj, daemon) },
+
+		// When a pod gets updated
+		UpdateFunc: func(old interface{}, new interface{}) { publishAddPod(new, daemon) },
 
 		// When a pod gets deleted
 		DeleteFunc: func(obj interface{}) { publishDeletePod(obj, daemon) },
