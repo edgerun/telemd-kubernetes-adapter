@@ -107,10 +107,10 @@ func initKubeClient() (*kubernetes.Clientset, error) {
 }
 
 type ContainerMessage struct {
-	Id    string `json:"id"`
-	Name  string `json:"name"`
-	Image string `json:"image"`
-	Port  int32  `json:"port"`
+	Id               string            `json:"id"`
+	Name             string            `json:"name"`
+	Image            string            `json:"image"`
+	Port             int32             `json:"port"`
 	ResourceRequests map[string]string `json:"resource_requests"`
 	ResourceLimits   map[string]string `json:"resource_limits"`
 }
@@ -182,12 +182,12 @@ func marshallPod(pod *v1.Pod) (string, bool) {
 		}
 
 		containers[container.Name] = ContainerMessage{
-			Id:    containerStatus.ContainerID,
-			Name:  name,
-			Image: image,
+			Id:               containerStatus.ContainerID,
+			Name:             name,
+			Image:            image,
 			ResourceRequests: requests,
 			ResourceLimits:   limits,
-			Port:  containerPort,
+			Port:             containerPort,
 		}
 	}
 
@@ -224,7 +224,7 @@ func publishDeletePod(obj interface{}, daemon *Daemon) {
 	ts := time.Now().Unix()
 	name := "pod/delete"
 	value := jsonObject
-	daemon.rds.Publish("galileo/event", fmt.Sprintf("%d %s %s", ts, name, value))
+	daemon.rds.Publish("galileo/events", fmt.Sprintf("%d %s %s", ts, name, value))
 }
 
 func watch(daemon *Daemon) error {
