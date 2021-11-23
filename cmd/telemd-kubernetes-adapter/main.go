@@ -126,12 +126,14 @@ type PodMessage struct {
 	QosClass   v1.PodQOSClass              `json:"qosClass"`
 	StartTime  *metav1.Time                `json:"startTime"`
 	Labels     map[string]string           `json:"labels"`
+	Phase      v1.PodPhase                 `json:"status"`
 }
 
 func publishAddPod(obj interface{}, daemon *Daemon) {
 	pod := obj.(*v1.Pod)
 	if pod.Status.Phase != v1.PodRunning {
 		log.Println("Got notified about Pod but state is not running: ", fmt.Sprintf("%s %s", pod.Name, pod.Status.Phase))
+		return
 	}
 	log.Printf("Added Pod: %s\n", pod.Name)
 	jsonObject, err := marshallPod(pod)
@@ -202,6 +204,7 @@ func marshallPod(pod *v1.Pod) (string, bool) {
 		QosClass:   pod.Status.QOSClass,
 		StartTime:  pod.Status.StartTime,
 		Labels:     pod.Labels,
+		Phase:      pod.Status.Phase,
 	}
 
 	marshal, err := json.Marshal(podMessage)
@@ -250,7 +253,13 @@ func watch(daemon *Daemon) error {
 		AddFunc: func(obj interface{}) { publishAddPod(obj, daemon) },
 
 		// When a pod gets updated
-		UpdateFunc: func(old interface{}, new interface{}) { publishAddPod(new, daemon) },
+		UpdateFunc: func(old interface{}, new interface{}) {
+			oldPod := old.(*v1.Pod)
+			newPod := new.(*v1.Pod)
+			if oldPod.Status.Phase != v1.PodRunning && newPod.Status.Phase == v1.PodRunning {
+				publishAddPod(new, daemon)
+			}
+		},
 
 		// When a pod gets deleted
 		DeleteFunc: func(obj interface{}) { publishDeletePod(obj, daemon) },
