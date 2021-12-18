@@ -135,6 +135,21 @@ func publishAddPod(obj interface{}, daemon *Daemon) {
 		log.Println("Got notified about Pod but state is not running: ", fmt.Sprintf("%s %s", pod.Name, pod.Status.Phase))
 		return
 	}
+	if len(pod.Status.PodIP) == 0 {
+		log.Println("Got notified about Pod but does not yet have Pod IP: ", fmt.Sprintf("%s %s", pod.Name, pod.Status.Phase))
+		return
+	}
+
+	if len(pod.Status.ContainerStatuses) < 1 {
+		log.Println("Got notified about Pod but does not have ContainerStatus: ", fmt.Sprintf("%s %s", pod.Name, pod.Status.Phase))
+		return
+	}
+
+	if len(pod.Status.ContainerStatuses[0].ContainerID) == 0 {
+		log.Println("Got notified about Pod but does not have Container ID: ", fmt.Sprintf("%s %s", pod.Name, pod.Status.Phase))
+		return
+	}
+
 	log.Printf("Added Pod: %s\n", pod.Name)
 	jsonObject, err := marshallPod(pod)
 	if err {
