@@ -129,7 +129,7 @@ type PodMessage struct {
 	Phase      v1.PodPhase                 `json:"status"`
 }
 
-func publishAddPod(obj interface{}, daemon *Daemon) {
+func publishRunningPod(obj interface{}, daemon *Daemon) {
 	pod := obj.(*v1.Pod)
 	if pod.Status.Phase != v1.PodRunning {
 		log.Println("Got notified about Pod but state is not running: ", fmt.Sprintf("%s %s", pod.Name, pod.Status.Phase))
@@ -151,16 +151,7 @@ func publishAddPod(obj interface{}, daemon *Daemon) {
 	}
 
 	log.Printf("Added Pod: %s\n", pod.Name)
-	jsonObject, err := marshallPod(pod)
-	if err {
-		return
-	}
-	log.Println(jsonObject)
-
-	ts := float64(time.Now().UnixNano()) / float64(1000000000)
-	name := "pod/create"
-	value := jsonObject
-	daemon.rds.Publish("galileo/events", fmt.Sprintf("%.7f %s %s", ts, name, value))
+	publishPod(pod, "running", daemon)
 }
 
 func findContainer(name string, image string, pod *v1.Pod) (*v1.Container, bool) {
@@ -232,6 +223,14 @@ func marshallPod(pod *v1.Pod) (string, bool) {
 }
 
 func publishDeletePod(obj interface{}, daemon *Daemon) {
+	publishPod(obj, "delete", daemon)
+}
+
+func publishCreatePod(obj interface{}, daemon *Daemon) {
+	publishPod(obj, "create", daemon)
+}
+
+func publishPod(obj interface{}, event string, daemon *Daemon) {
 	pod := obj.(*v1.Pod)
 	jsonObject, err := marshallPod(pod)
 	if err {
@@ -239,10 +238,10 @@ func publishDeletePod(obj interface{}, daemon *Daemon) {
 	}
 	log.Println(jsonObject)
 
-	ts := time.Now().Unix()
-	name := "pod/delete"
+	ts := fmt.Sprintf("%.7f", float64(time.Now().UnixNano())/float64(1_000_000_000))
+	name := fmt.Sprintf("pod/%s", event)
 	value := jsonObject
-	daemon.rds.Publish("galileo/events", fmt.Sprintf("%d %s %s", ts, name, value))
+	daemon.rds.Publish("galileo/events", fmt.Sprintf("%s %s %s", ts, name, value))
 }
 
 func watch(daemon *Daemon) error {
@@ -265,19 +264,33 @@ func watch(daemon *Daemon) error {
 	// event that the shared informer catches
 	informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		// When a new pod gets created
-		AddFunc: func(obj interface{}) { publishAddPod(obj, daemon) },
+		AddFunc: func(obj interface{}) {
+			pod := obj.(*v1.Pod)
+			log.Println("Add - ", pod.Status.Phase)
+			publishCreatePod(obj, daemon)
+		},
 
 		// When a pod gets updated
 		UpdateFunc: func(old interface{}, new interface{}) {
 			oldPod := old.(*v1.Pod)
 			newPod := new.(*v1.Pod)
-			if oldPod.Status.Phase != v1.PodRunning && newPod.Status.Phase == v1.PodRunning {
-				publishAddPod(new, daemon)
+			log.Printf("Update - old: %s, new: %s\n", oldPod.Status.Phase, newPod.Status.Phase)
+			if oldPod.Status.Phase == v1.PodPending && newPod.Status.Phase == v1.PodRunning {
+				publishRunningPod(new, daemon)
+			} else if oldPod.Status.Phase == v1.PodPending && newPod.Status.Phase == v1.PodPending {
+				publishPod(new, "pending", daemon)
+			} else if oldPod.DeletionTimestamp == nil && newPod.DeletionTimestamp != nil {
+				publishPod(new, "shutdown", daemon)
 			}
+
 		},
 
 		// When a pod gets deleted
-		DeleteFunc: func(obj interface{}) { publishDeletePod(obj, daemon) },
+		DeleteFunc: func(obj interface{}) {
+			pod := obj.(*v1.Pod)
+			log.Println("Delete - ", pod.Status.Phase)
+			publishDeletePod(obj, daemon)
+		},
 	})
 
 	// You need to start the informer, in my case, it runs in the background
@@ -294,7 +307,7 @@ func publishDeployedPods(daemon *Daemon) {
 
 	fmt.Printf("There are %d pods in the cluster\n", len(pods.Items))
 	for _, pod := range pods.Items {
-		publishAddPod(&pod, daemon)
+		publishRunningPod(&pod, daemon)
 	}
 }
 
