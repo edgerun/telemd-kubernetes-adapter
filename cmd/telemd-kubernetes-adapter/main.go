@@ -155,8 +155,12 @@ func publishRunningPod(obj interface{}, daemon *Daemon) {
 }
 
 func findContainer(name string, image string, pod *v1.Pod) (*v1.Container, bool) {
+	if len(pod.Spec.Containers) == 1 {
+		return &pod.Spec.Containers[0], true
+	}
 	for _, container := range pod.Spec.Containers {
-		if container.Name == name && strings.Contains(image, container.Image) {
+		containerImage := strings.Split(container.Image, ":")[0]
+		if container.Name == name && strings.Contains(image, containerImage) {
 			return &container, true
 		}
 	}
