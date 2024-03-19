@@ -182,25 +182,29 @@ func marshallPod(pod *v1.Pod) (string, bool) {
 		name := containerStatus.Name
 		image := containerStatus.Image
 		container, _ := findContainer(name, image, pod)
-		image = container.Image
-		requests := mapResource(container.Resources.Requests)
-		limits := mapResource(container.Resources.Limits)
+		image = "unknown"
+		if container != nil {
+			image = container.Image
+			requests := mapResource(container.Resources.Requests)
+			limits := mapResource(container.Resources.Limits)
 
-		var containerPort int32
-		if len(container.Ports) > 0 {
-			containerPort = container.Ports[0].ContainerPort
-		} else {
-			containerPort = -1
+			var containerPort int32
+			if len(container.Ports) > 0 {
+				containerPort = container.Ports[0].ContainerPort
+			} else {
+				containerPort = -1
+			}
+
+			containers[container.Name] = ContainerMessage{
+				Id:               containerStatus.ContainerID,
+				Name:             name,
+				Image:            image,
+				ResourceRequests: requests,
+				ResourceLimits:   limits,
+				Port:             containerPort,
+			}
 		}
 
-		containers[container.Name] = ContainerMessage{
-			Id:               containerStatus.ContainerID,
-			Name:             name,
-			Image:            image,
-			ResourceRequests: requests,
-			ResourceLimits:   limits,
-			Port:             containerPort,
-		}
 	}
 
 	podMessage := PodMessage{
@@ -236,16 +240,19 @@ func publishCreatePod(obj interface{}, daemon *Daemon) {
 
 func publishPod(obj interface{}, event string, daemon *Daemon) {
 	pod := obj.(*v1.Pod)
-	jsonObject, err := marshallPod(pod)
-	if err {
-		return
-	}
-	log.Println(jsonObject)
+	if pod != nil {
+		jsonObject, err := marshallPod(pod)
+		if err {
+			return
+		}
+		log.Println(jsonObject)
 
-	ts := fmt.Sprintf("%.7f", float64(time.Now().UnixNano())/float64(1_000_000_000))
-	name := fmt.Sprintf("pod/%s", event)
-	value := jsonObject
-	daemon.rds.Publish("galileo/events", fmt.Sprintf("%s %s %s", ts, name, value))
+		ts := fmt.Sprintf("%.7f", float64(time.Now().UnixNano())/float64(1_000_000_000))
+		name := fmt.Sprintf("pod/%s", event)
+		value := jsonObject
+		daemon.rds.Publish("galileo/events", fmt.Sprintf("%s %s %s", ts, name, value))
+
+	}
 }
 
 func watch(daemon *Daemon) error {
